@@ -69,7 +69,6 @@ export class GameStateManager extends EventEmitter {
     this.gameState.lobbyEndTime =
       now + CONFIG.GAME.LOBBY_DURATION_SECONDS * 1000;
 
-    // Clear previous lobby players (they should be in round now)
     this.lobbyPlayers.clear();
 
     // Emit lobby start event
@@ -83,7 +82,7 @@ export class GameStateManager extends EventEmitter {
       this.endLobby();
     }, CONFIG.GAME.LOBBY_DURATION_SECONDS * 1000);
 
-    // Broadcast lobby updates every second
+    // Broadcast lobby updates every second (start after 1 second, not immediately)
     const lobbyUpdateInterval = setInterval(() => {
       if (this.gameState.phase !== "LOBBY") {
         clearInterval(lobbyUpdateInterval);
@@ -105,9 +104,8 @@ export class GameStateManager extends EventEmitter {
         totalWagered,
         players: Array.from(this.lobbyPlayers.values()),
       });
-    }, 1000);
+    }, 1000); // ← This is correct, but remove the duplicate lobby:start broadcast
   }
-
   /**
    * End lobby and start round
    */
