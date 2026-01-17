@@ -1,0 +1,87 @@
+// Prisma Schema for Debonk Game Server
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Players/Users
+model Player {
+  id            String     @id @default(uuid())
+  username      String     @unique
+  walletAddress String?    @unique @map("wallet_address")
+  demoBalance   Decimal    @default(100) @map("demo_balance") @db.Decimal(20, 8) // Everyone starts with $100
+  totalPnl      Decimal    @default(0) @map("total_pnl") @db.Decimal(20, 8)
+  totalWagered  Decimal    @default(0) @map("total_wagered") @db.Decimal(20, 8)
+  gamesPlayed   Int        @default(0) @map("games_played")
+  gamesWon      Int        @default(0) @map("games_won")
+  gamesLost     Int        @default(0) @map("games_lost")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  positions     Position[]
+  lobbyEntries  LobbyEntry[]
+
+  @@map("players")
+}
+
+// Game Rounds
+model Round {
+  id              String    @id @default(uuid())
+  pair            String
+  entryPrice      Decimal   @map("entry_price") @db.Decimal(20, 8)
+  exitPrice       Decimal?  @map("exit_price") @db.Decimal(20, 8)
+  leverage        Int
+  durationSeconds Decimal?  @map("duration_seconds") @db.Decimal(5, 2)
+  volatility      Decimal?  @db.Decimal(10, 4) // Volatility index value
+  totalWagered    Decimal   @default(0) @map("total_wagered") @db.Decimal(20, 8) // Sum of all bets
+  playersCount    Int       @default(0) @map("players_count")
+  startedAt       DateTime  @map("started_at")
+  endedAt         DateTime? @map("ended_at")
+  status          String    @default("active") // 'active', 'completed'
+
+  positions       Position[]
+
+  @@index([status])
+  @@index([startedAt])
+  @@map("rounds")
+}
+
+// Player Positions in Each Round
+model Position {
+  id           String    @id @default(uuid())
+  roundId      String    @map("round_id")
+  playerId     String    @map("player_id")
+  positionType String    @map("position_type") // 'LONG' or 'SHORT'
+  betAmount    Decimal   @map("bet_amount") @db.Decimal(20, 8) // Amount player bet this round
+  exitPrice    Decimal?  @map("exit_price") @db.Decimal(20, 8)
+  pnl          Decimal?  @db.Decimal(20, 8)
+  didShoot     Boolean   @default(false) @map("did_shoot")
+  liquidated   Boolean   @default(false)
+  shotAt       DateTime? @map("shot_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  round   Round  @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  player  Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([roundId])
+  @@index([playerId])
+  @@map("positions")
+}
+
+// Lobby State (current waiting players)
+model LobbyEntry {
+  id        String   @id @default(uuid())
+  playerId  String   @map("player_id")
+  betAmount Decimal  @map("bet_amount") @db.Decimal(20, 8) // Amount player wants to bet
+  joinedAt  DateTime @default(now()) @map("joined_at")
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId])
+  @@map("lobby_entries")
+}
