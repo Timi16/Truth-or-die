@@ -8,7 +8,7 @@
  *   node test-client.js Alice 50
  */
 
-const WebSocket = require('ws');
+import WebSocket from 'ws';
 
 const username = process.argv[2] || 'TestPlayer';
 const betAmount = parseFloat(process.argv[3] || '10');
