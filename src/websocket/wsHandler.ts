@@ -1,7 +1,12 @@
-import WebSocket from 'ws';
-import {type GameClient, type ClientMessage, type ServerMessage } from '../types.js';
-import { logger } from '../utils/logger.js';
-import { gameStateManager } from '../services/gameStateManager.js';
+import WebSocket from "ws";
+import {
+  type GameClient,
+  type ClientMessage,
+  type ServerMessage,
+} from "../types.js";
+import { logger } from "../utils/logger.js";
+import { gameStateManager } from "../services/gameStateManager.js";
+import { calculateLiquidationPrice } from "../utils/calculation.js";
 
 export class WebSocketHandler {
   private clients: Map<WebSocket, GameClient> = new Map();
@@ -15,9 +20,9 @@ export class WebSocketHandler {
    */
   private setupGameStateListeners(): void {
     // Lobby events
-    gameStateManager.on('lobby:start', (data) => {
+    gameStateManager.on("lobby:start", (data) => {
       this.broadcastToAll({
-        type: 'LOBBY_UPDATE',
+        type: "LOBBY_UPDATE",
         secondsRemaining: Math.ceil((data.lobbyEndTime - Date.now()) / 1000),
         playersInLobby: 0,
         totalWagered: 0,
@@ -25,9 +30,9 @@ export class WebSocketHandler {
       });
     });
 
-    gameStateManager.on('lobby:update', (data) => {
+    gameStateManager.on("lobby:update", (data) => {
       this.broadcastToAll({
-        type: 'LOBBY_UPDATE',
+        type: "LOBBY_UPDATE",
         secondsRemaining: data.secondsRemaining,
         playersInLobby: data.playersInLobby,
         totalWagered: data.totalWagered,
@@ -36,11 +41,11 @@ export class WebSocketHandler {
     });
 
     // Round events
-    gameStateManager.on('round:start', (data) => {
+    gameStateManager.on("round:start", (data) => {
       // Send personalized round start to each player
       for (const assignment of data.positions) {
         this.sendToPlayer(assignment.playerId, {
-          type: 'ROUND_START',
+          type: "ROUND_START",
           roundId: data.roundId,
           pair: data.pair,
           entryPrice: data.entryPrice,
@@ -51,7 +56,7 @@ export class WebSocketHandler {
       }
     });
 
-    gameStateManager.on('price:update', (data) => {
+    gameStateManager.on("price:update", (data) => {
       // Send personalized price updates to each player
       for (const positionData of data.positions) {
         const round = gameStateManager.getGameState().currentRound;
@@ -60,14 +65,14 @@ export class WebSocketHandler {
         const position = round.positions.get(positionData.playerId);
         if (!position) continue;
 
-        const liquidationPrice = require('../utils/calculations').calculateLiquidationPrice(
+        const liquidationPrice = calculateLiquidationPrice(
           position.positionType,
           position.entryPrice,
-          round.leverage
+          round.leverage,
         );
 
         this.sendToPlayer(positionData.playerId, {
-          type: 'PRICE_UPDATE',
+          type: "PRICE_UPDATE",
           currentPrice: data.currentPrice,
           pnl: positionData.pnl,
           pnlPercentage: positionData.pnlPercentage,
@@ -76,17 +81,17 @@ export class WebSocketHandler {
       }
     });
 
-    gameStateManager.on('player:liquidated', (data) => {
+    gameStateManager.on("player:liquidated", (data) => {
       this.sendToPlayer(data.playerId, {
-        type: 'LIQUIDATED',
+        type: "LIQUIDATED",
         finalPrice: data.finalPrice,
         loss: data.loss,
       });
     });
 
-    gameStateManager.on('player:shoot', (data) => {
+    gameStateManager.on("player:shoot", (data) => {
       this.sendToPlayer(data.playerId, {
-        type: 'SHOOT_SUCCESS',
+        type: "SHOOT_SUCCESS",
         exitPrice: data.exitPrice,
         pnl: data.pnl,
         payout: data.payout,
@@ -96,14 +101,16 @@ export class WebSocketHandler {
       this.sendBalanceUpdate(data.playerId);
     });
 
-    gameStateManager.on('round:end', async (data) => {
+    gameStateManager.on("round:end", async (data) => {
       // Send personalized round end to each player
       for (const payout of data.payouts) {
         // Get updated balance
-        const balanceData = await gameStateManager.getPlayerBalance(payout.playerId);
-        
+        const balanceData = await gameStateManager.getPlayerBalance(
+          payout.playerId,
+        );
+
         this.sendToPlayer(payout.playerId, {
-          type: 'ROUND_END',
+          type: "ROUND_END",
           finalPrice: data.finalPrice,
           myPnl: payout.pnl,
           payout: payout.payout,
@@ -120,10 +127,10 @@ export class WebSocketHandler {
    */
   private async sendBalanceUpdate(playerId: string): Promise<void> {
     const balanceData = await gameStateManager.getPlayerBalance(playerId);
-    
+
     if (balanceData) {
       this.sendToPlayer(playerId, {
-        type: 'BALANCE_UPDATE',
+        type: "BALANCE_UPDATE",
         balance: balanceData.balance,
         totalPnl: balanceData.totalPnl,
         gamesPlayed: balanceData.gamesPlayed,
@@ -136,7 +143,7 @@ export class WebSocketHandler {
    */
   handleConnection(ws: WebSocket): void {
     const clientId = this.generateClientId();
-    
+
     const client: GameClient = {
       id: clientId,
       ws,
@@ -149,22 +156,22 @@ export class WebSocketHandler {
 
     // Send welcome message
     this.sendMessage(ws, {
-      type: 'CONNECTED',
+      type: "CONNECTED",
       clientId,
       timestamp: Date.now(),
     });
 
     // Handle messages
-    ws.on('message', (data: WebSocket.Data) => {
+    ws.on("message", (data: WebSocket.Data) => {
       this.handleMessage(ws, data, client);
     });
 
     // Handle disconnect
-    ws.on('close', () => {
+    ws.on("close", () => {
       this.handleDisconnect(ws, client);
     });
 
-    ws.on('error', (error) => {
+    ws.on("error", (error) => {
       logger.error(`WebSocket error for client ${clientId}:`, error);
     });
   }
@@ -172,62 +179,84 @@ export class WebSocketHandler {
   /**
    * Handle incoming message from client
    */
-  private async handleMessage(ws: WebSocket, data: WebSocket.Data, client: GameClient): Promise<void> {
+  private async handleMessage(
+    ws: WebSocket,
+    data: WebSocket.Data,
+    client: GameClient,
+  ): Promise<void> {
     try {
       const message: ClientMessage = JSON.parse(data.toString());
 
       switch (message.type) {
-        case 'JOIN_LOBBY':
+        case "JOIN_LOBBY":
           await this.handleJoinLobby(ws, message, client);
           break;
 
-        case 'LEAVE_LOBBY':
+        case "LEAVE_LOBBY":
           await this.handleLeaveLobby(ws, message, client);
           break;
 
-        case 'SHOOT':
+        case "SHOOT":
           await this.handleShoot(ws, message, client);
           break;
 
-        case 'GET_BALANCE':
+        case "GET_BALANCE":
           await this.handleGetBalance(ws, message, client);
           break;
 
-        case 'PING':
-          this.sendMessage(ws, { type: 'PONG' });
+        case "PING":
+          this.sendMessage(ws, { type: "PONG" });
           break;
 
         default:
-          this.sendError(ws, 'Unknown message type', 'UNKNOWN_MESSAGE');
+          this.sendError(ws, "Unknown message type", "UNKNOWN_MESSAGE");
       }
     } catch (error: any) {
-      logger.error('Error handling message:', error);
-      this.sendError(ws, error.message || 'Internal server error', 'INTERNAL_ERROR');
+      logger.error("Error handling message:", error);
+      this.sendError(
+        ws,
+        error.message || "Internal server error",
+        "INTERNAL_ERROR",
+      );
     }
   }
 
   /**
    * Handle JOIN_LOBBY
    */
-  private async handleJoinLobby(ws: WebSocket, message: Extract<ClientMessage, { type: 'JOIN_LOBBY' }>, client: GameClient): Promise<void> {
+  private async handleJoinLobby(
+    ws: WebSocket,
+    message: Extract<ClientMessage, { type: "JOIN_LOBBY" }>,
+    client: GameClient,
+  ): Promise<void> {
     try {
-      await gameStateManager.joinLobby(message.playerId, message.username, message.betAmount);
-      
+      await gameStateManager.joinLobby(
+        message.playerId,
+        message.username,
+        message.betAmount,
+      );
+
       client.playerId = message.playerId;
-      
+
       // Send balance update
       await this.sendBalanceUpdate(message.playerId);
-      
-      logger.info(`Player ${message.username} (${message.playerId}) joined lobby with bet $${message.betAmount}`);
+
+      logger.info(
+        `Player ${message.username} (${message.playerId}) joined lobby with bet $${message.betAmount}`,
+      );
     } catch (error: any) {
-      this.sendError(ws, error.message, 'JOIN_LOBBY_FAILED');
+      this.sendError(ws, error.message, "JOIN_LOBBY_FAILED");
     }
   }
 
   /**
    * Handle LEAVE_LOBBY
    */
-  private async handleLeaveLobby(ws: WebSocket, message: Extract<ClientMessage, { type: 'LEAVE_LOBBY' }>, client: GameClient): Promise<void> {
+  private async handleLeaveLobby(
+    ws: WebSocket,
+    message: Extract<ClientMessage, { type: "LEAVE_LOBBY" }>,
+    client: GameClient,
+  ): Promise<void> {
     // TODO: Implement leave lobby logic
     logger.info(`Player ${message.playerId} left lobby`);
   }
@@ -235,22 +264,30 @@ export class WebSocketHandler {
   /**
    * Handle SHOOT
    */
-  private async handleShoot(ws: WebSocket, message: Extract<ClientMessage, { type: 'SHOOT' }>, client: GameClient): Promise<void> {
+  private async handleShoot(
+    ws: WebSocket,
+    message: Extract<ClientMessage, { type: "SHOOT" }>,
+    client: GameClient,
+  ): Promise<void> {
     try {
       await gameStateManager.shoot(message.playerId, message.roundId);
     } catch (error: any) {
-      this.sendError(ws, error.message, 'SHOOT_FAILED');
+      this.sendError(ws, error.message, "SHOOT_FAILED");
     }
   }
 
   /**
    * Handle GET_BALANCE
    */
-  private async handleGetBalance(ws: WebSocket, message: Extract<ClientMessage, { type: 'GET_BALANCE' }>, client: GameClient): Promise<void> {
+  private async handleGetBalance(
+    ws: WebSocket,
+    message: Extract<ClientMessage, { type: "GET_BALANCE" }>,
+    client: GameClient,
+  ): Promise<void> {
     try {
       await this.sendBalanceUpdate(message.playerId);
     } catch (error: any) {
-      this.sendError(ws, error.message, 'GET_BALANCE_FAILED');
+      this.sendError(ws, error.message, "GET_BALANCE_FAILED");
     }
   }
 
@@ -259,7 +296,9 @@ export class WebSocketHandler {
    */
   private handleDisconnect(ws: WebSocket, client: GameClient): void {
     this.clients.delete(ws);
-    logger.info(`Client ${client.id} disconnected (total: ${this.clients.size})`);
+    logger.info(
+      `Client ${client.id} disconnected (total: ${this.clients.size})`,
+    );
   }
 
   /**
@@ -296,7 +335,7 @@ export class WebSocketHandler {
    */
   private sendError(ws: WebSocket, message: string, code?: string): void {
     const errorMessage: ServerMessage = {
-      type: 'ERROR',
+      type: "ERROR",
       message,
       ...(code !== undefined && { code }),
     };
