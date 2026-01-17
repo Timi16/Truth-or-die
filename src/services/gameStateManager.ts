@@ -487,6 +487,9 @@ export class GameStateManager extends EventEmitter {
   /**
    * Player joins lobby
    */
+  /**
+   * Player joins lobby
+   */
   async joinLobby(
     playerId: string,
     username: string,
@@ -506,21 +509,24 @@ export class GameStateManager extends EventEmitter {
       throw new Error("Already in lobby");
     }
 
-    // Create or get player
-    let player = await prisma.player.findUnique({ where: { id: playerId } });
+    // Use upsert to create or update player
+    const player = await prisma.player.upsert({
+      where: { username },
+      update: {
+        id: playerId, // Update ID if username exists
+      },
+      create: {
+        id: playerId,
+        username,
+        demoBalance: CONFIG.PLAYER.DEFAULT_DEMO_BALANCE,
+      },
+    });
 
-    if (!player) {
-      player = await prisma.player.create({
-        data: {
-          id: playerId,
-          username,
-          demoBalance: CONFIG.PLAYER.DEFAULT_DEMO_BALANCE,
-        },
-      });
-      logger.info(
-        `New player created: ${username} with $${CONFIG.PLAYER.DEFAULT_DEMO_BALANCE} balance`,
-      );
-    }
+    logger.info(
+      player.createdAt.getTime() === player.updatedAt.getTime()
+        ? `New player created: ${username} with $${CONFIG.PLAYER.DEFAULT_DEMO_BALANCE} balance`
+        : `Existing player ${username} reconnected`,
+    );
 
     // Check balance
     if (Number(player.demoBalance) < betAmount) {
@@ -632,9 +638,7 @@ export class GameStateManager extends EventEmitter {
   /**
    * Get player balance
    */
-  async getPlayerBalance(
-    playerId: string,
-  ): Promise<{
+  async getPlayerBalance(playerId: string): Promise<{
     balance: number;
     totalPnl: number;
     gamesPlayed: number;
