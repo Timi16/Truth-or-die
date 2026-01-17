@@ -330,8 +330,11 @@ export class GameStateManager extends EventEmitter {
 
         // Update database
         prisma.position
-          .update({
-            where: { id: playerId },
+          .updateMany({
+            where: {
+              roundId: round.id,
+              playerId: playerId,
+            },
             data: {
               liquidated: true,
               pnl: -position.betAmount,
@@ -425,8 +428,11 @@ export class GameStateManager extends EventEmitter {
       payouts.push({ playerId, payout, pnl, didShoot: position.didShoot });
 
       // Update position in database
-      await prisma.position.update({
-        where: { id: playerId },
+      await prisma.position.updateMany({
+        where: {
+          roundId: round.id,
+          playerId: playerId,
+        },
         data: {
           exitPrice: finalPrice,
           pnl,
@@ -598,8 +604,11 @@ export class GameStateManager extends EventEmitter {
     const payout = calculatePayout(position.betAmount, pnl, true, false);
 
     // Update database
-    await prisma.position.update({
-      where: { id: playerId },
+    await prisma.position.updateMany({
+      where: {
+        roundId: roundId,
+        playerId: playerId,
+      },
       data: {
         didShoot: true,
         shotAt: new Date(),
