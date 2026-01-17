@@ -1,8 +1,8 @@
-import { CONFIG } from '../config';
-import { logger } from '../utils/logger';
-import { calculateStandardDeviation } from '../utils/calculations';
-import { VolatilityData, PriceData } from '../types';
-import { priceFeedClient } from './priceFeedClient';
+import { CONFIG } from '../config.js';
+import { logger } from '../utils/logger.js';
+import { calculateStandardDeviation } from '../utils/calculation.js';
+import { type VolatilityData, type PriceData } from '../types.js';
+import { priceFeedClient } from './priceFeedClient.js';
 
 /**
  * Track price history and calculate volatility for all pairs

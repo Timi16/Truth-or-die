@@ -17,6 +17,8 @@ model Player {
   demoBalance   Decimal    @default(10000) @map("demo_balance") @db.Decimal(20, 8)
   totalPnl      Decimal    @default(0) @map("total_pnl") @db.Decimal(20, 8)
   gamesPlayed   Int        @default(0) @map("games_played")
+  gamesWon      Int        @default(0) @map("games_won")      // Add this line
+  gamesLost     Int        @default(0) @map("games_lost")     // Add this line
   createdAt     DateTime   @default(now()) @map("created_at")
   updatedAt     DateTime   @updatedAt @map("updated_at")
 

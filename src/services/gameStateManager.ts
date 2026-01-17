@@ -4,7 +4,7 @@ import { logger } from '../utils/logger.js';
 import { type GameState, type GamePhase, type RoundState, type PlayerPosition, type LobbyPlayer, type PriceData } from '../types.js';
 import { prisma } from './prisma.js';
 import { priceFeedClient } from './priceFeedClient.js';
-import { volatilityService } from './volatilityService';
+import { volatilityService } from './volatilityService.js';
 import { selectRandomPair, assignRandomPositions, generateRandomDuration } from '../utils/randomizer.js';
 import { calculatePnL, calculatePnLPercentage, calculateLiquidationPrice, isLiquidated, calculatePayout } from '../utils/calculation.js';
 
@@ -144,8 +144,6 @@ export class GameStateManager extends EventEmitter {
         entryPrice,
         leverage,
         durationSeconds: duration,
-        totalWagered,
-        playersCount: this.lobbyPlayers.size,
         startedAt: new Date(now),
         status: 'active',
       },
@@ -178,7 +176,7 @@ export class GameStateManager extends EventEmitter {
           roundId: round.id,
           playerId,
           positionType,
-          betAmount: lobbyPlayer.betAmount,
+          entryAmount: lobbyPlayer.betAmount,
         },
       });
 
@@ -187,7 +185,6 @@ export class GameStateManager extends EventEmitter {
         where: { id: playerId },
         data: {
           demoBalance: { decrement: lobbyPlayer.betAmount },
-          totalWagered: { increment: lobbyPlayer.betAmount },
         },
       });
 
