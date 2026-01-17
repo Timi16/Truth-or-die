@@ -16,8 +16,8 @@ export const CONFIG = {
   GAME: {
     DEFAULT_LEVERAGE: parseInt(process.env.DEFAULT_LEVERAGE || '500', 10),
     LOBBY_DURATION_SECONDS: parseInt(process.env.LOBBY_DURATION_SECONDS || '20', 10),
-    MIN_ROUND_DURATION_SECONDS: parseInt(process.env.MIN_ROUND_DURATION_SECONDS || '5', 10),
-    MAX_ROUND_DURATION_SECONDS: parseInt(process.env.MAX_ROUND_DURATION_SECONDS || '15', 10),
+    MIN_ROUND_DURATION_SECONDS: parseInt(process.env.MIN_ROUND_DURATION_SECONDS || '10', 10),  // ← Changed to 10
+    MAX_ROUND_DURATION_SECONDS: parseInt(process.env.MAX_ROUND_DURATION_SECONDS || '120', 10), // ← Changed to 120
   },
 
   // Player Settings

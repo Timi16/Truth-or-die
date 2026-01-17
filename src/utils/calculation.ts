@@ -73,6 +73,9 @@ export function isLiquidated(
 /**
  * Calculate final payout for a position
  */
+/**
+ * Calculate final payout for a position
+ */
 export function calculatePayout(
   entryAmount: number,
   pnl: number,
@@ -84,12 +87,9 @@ export function calculatePayout(
     return 0;
   }
 
-  if (!didShoot) {
-    // No shoot = return entry amount only (house takes profit)
-    return entryAmount;
-  }
-
-  // Shot early = entry + pnl (but can't go below 0)
+  // Whether they shot or not, they get their entry + P&L
+  // The only difference is shooting early locks in the current P&L
+  // Time expiry should settle at the final P&L
   return Math.max(0, entryAmount + pnl);
 }
 
